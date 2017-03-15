@@ -2,15 +2,15 @@ open Core.Std
 open Async.Std
 
 (* TODO: Refactor this to be UI-independent. *)
-let receive_message r =
+let rec receive_message r =
   Reader.read_line r >>= function
   | `Eof -> failwith "Unexpected input from client.\n"
   | `Ok message ->
     (* TODO: Return ACK. *)
-    print_endline message; return ()
+    print_endline message; receive_message r
 
 (* TODO: Refactor this to be UI-independent. *)
-let send_message w =
+let rec send_message r w =
   let stdin = Lazy.force Reader.stdin in
   Reader.read_line stdin >>= function
   | `Eof -> failwith "Unexpected input from stdin.\n"
@@ -20,15 +20,15 @@ let send_message w =
       Writer.write_line w line;
       let time_taken = (Unix.gettimeofday ()) -. start in
       printf "Roundtrip time: %f seconds\n" time_taken;
-      return ()
+      send_message r w
     end
 
 let read_and_send_message _ r w =
   let rec loop r w =
     Deferred.all [
       (receive_message r);
-      (send_message w);
-    ] >>= (fun _ -> loop r w)
+      (send_message r w);
+    ] >>= (fun _ -> Deferred.never ())
   in loop r w
 
 let run ~port =
